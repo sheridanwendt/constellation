@@ -89,6 +89,16 @@ Data is preserved in `postgres_data/`, `qdrant_storage/`, and `data/nats/`.
 ./scripts/logs.sh postgres # single service
 ```
 
+## Backups
+
+```bash
+./scripts/backup.sh                 # one-off backup
+sudo ./scripts/schedule-backups.sh  # enable automatic weekly backups
+```
+
+Kept to a 50GB / 52-week rolling budget, with the first backup ever taken
+retained permanently. See `docs/09-operations.md` for the full policy.
+
 See `docs/09-operations.md` for full operational details.
 
 ## Current Services

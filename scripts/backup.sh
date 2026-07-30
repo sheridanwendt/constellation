@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Takes a simple point-in-time backup of Constellation's data and config.
+# Takes a simple point-in-time backup of Constellation's data and config,
+# then enforces retention: the first backup ever taken is kept forever;
+# beyond that, up to BACKUP_RETENTION_COUNT weekly backups are kept, and
+# the oldest are pruned first if total backup storage exceeds
+# BACKUP_MAX_TOTAL_GB. See docs/09-operations.md for the full policy.
 #
-# This is not a full backup system (no scheduling, retention, or restore
-# automation yet) — it exists so you have something to fall back on the
-# first time you break something while experimenting.
+# This is still not a full backup system — there is no restore automation
+# yet — but it now supports safe unattended/scheduled use (see
+# scripts/schedule-backups.sh).
 #
 # Usage: ./scripts/backup.sh
 set -euo pipefail
@@ -15,6 +19,26 @@ source "${SCRIPT_DIR}/lib/common.sh"
 REPO_ROOT="$(constellation_repo_root)"
 cd "${REPO_ROOT}"
 
+if [[ -f .env ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+fi
+
+BACKUP_RETENTION_COUNT="${BACKUP_RETENTION_COUNT:-52}"
+BACKUP_MAX_TOTAL_GB="${BACKUP_MAX_TOTAL_GB:-50}"
+PERMANENT_MARKER="backups/.permanent"
+
+mkdir -p backups
+
+# Whether any backup already existed before this run, used below to decide
+# whether the one we're about to create becomes the permanently kept copy.
+PRIOR_BACKUP_EXISTS=false
+if compgen -G "backups/[0-9]*-[0-9]*" >/dev/null 2>&1; then
+    PRIOR_BACKUP_EXISTS=true
+fi
+
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="backups/${TIMESTAMP}"
 mkdir -p "${BACKUP_DIR}"
@@ -25,8 +49,8 @@ log_info "Writing backup to ${BACKUP_DIR}/"
 if [[ -n "$(docker compose ps --status running --quiet postgres)" ]]; then
     log_info "Dumping PostgreSQL database..."
     docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-        > "${BACKUP_DIR}/postgres.sql"
-    log_success "PostgreSQL dump saved: ${BACKUP_DIR}/postgres.sql"
+        | gzip > "${BACKUP_DIR}/postgres.sql.gz"
+    log_success "PostgreSQL dump saved: ${BACKUP_DIR}/postgres.sql.gz"
 else
     log_warn "postgres container is not running, skipping database dump."
 fi
@@ -56,3 +80,44 @@ else
 fi
 
 log_success "Backup complete: ${REPO_ROOT}/${BACKUP_DIR}"
+
+# --- Mark the first-ever backup as permanent ---
+if [[ ! -f "${PERMANENT_MARKER}" && "${PRIOR_BACKUP_EXISTS}" == "false" ]]; then
+    echo "${TIMESTAMP}" > "${PERMANENT_MARKER}"
+    log_success "Marked ${TIMESTAMP} as the permanent backup (never auto-pruned)."
+fi
+
+# --- Retention: prune oldest backups by count, then by total size ---
+PERMANENT_BACKUP=""
+[[ -f "${PERMANENT_MARKER}" ]] && PERMANENT_BACKUP="$(cat "${PERMANENT_MARKER}")"
+
+mapfile -t ALL_BACKUPS < <(find backups -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort)
+
+ROTATABLE=()
+for dir in "${ALL_BACKUPS[@]}"; do
+    [[ "${dir}" == "${PERMANENT_BACKUP}" ]] && continue
+    ROTATABLE+=("${dir}")
+done
+
+while [[ "${#ROTATABLE[@]}" -gt "${BACKUP_RETENTION_COUNT}" ]]; do
+    oldest="${ROTATABLE[0]}"
+    log_warn "Retention limit (${BACKUP_RETENTION_COUNT} weekly backups) exceeded, removing oldest: ${oldest}"
+    rm -rf "backups/${oldest}"
+    ROTATABLE=("${ROTATABLE[@]:1}")
+done
+
+MAX_BYTES=$((BACKUP_MAX_TOTAL_GB * 1024 * 1024 * 1024))
+while [[ "$(du -sb backups | cut -f1)" -gt "${MAX_BYTES}" && "${#ROTATABLE[@]}" -gt 0 ]]; do
+    oldest="${ROTATABLE[0]}"
+    log_warn "Backup storage budget (${BACKUP_MAX_TOTAL_GB}GB) exceeded, removing oldest: ${oldest}"
+    rm -rf "backups/${oldest}"
+    ROTATABLE=("${ROTATABLE[@]:1}")
+done
+
+TOTAL_SIZE="$(du -sh backups | cut -f1)"
+log_info "Total backup storage in use: ${TOTAL_SIZE} (budget: ${BACKUP_MAX_TOTAL_GB}GB)"
+
+if [[ "$(du -sb backups | cut -f1)" -gt "${MAX_BYTES}" ]]; then
+    log_warn "Backup storage still exceeds the ${BACKUP_MAX_TOTAL_GB}GB budget after pruning all rotatable backups."
+    log_warn "Only the permanent backup (${PERMANENT_BACKUP:-none}) and/or the newest backup remain here; free disk space manually or lower BACKUP_MAX_TOTAL_GB / BACKUP_RETENTION_COUNT."
+fi
