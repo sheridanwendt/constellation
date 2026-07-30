@@ -1,22 +1,15 @@
 ﻿# Project Plan
 
-## Phase 1 - Foundation
-
-Goal:
-
-Create a working local platform foundation.
+## Phase 1 - Infrastructure Foundation
 
 Build:
 
 - Ubuntu installation scripts
 - Docker installation
-- Docker Compose deployment
+- Docker Compose
 - PostgreSQL
 - Qdrant
 - NATS
-- Configuration management
-- Logging
-- Health checks
 
 
 ---
@@ -25,11 +18,12 @@ Build:
 
 Build:
 
+- Event contracts
+- Memory API
+- Skill API
 - Agent registry
-- Event system
-- Agent lifecycle management
-- Configuration service
 - Permissions model
+- Configuration system
 
 
 ---
@@ -39,27 +33,13 @@ Build:
 Implement:
 
 - Hermes adapter
-- Hermes deployment
+- Agent lifecycle
 - Agent communication
 
 
 ---
 
-## Phase 4 - Shared Capabilities
-
-Implement:
-
-- Memory service
-- Skill service
-- MCP integration
-- File handling
-- Search
-- Browser tools
-
-
----
-
-## Phase 5 - Interfaces
+## Phase 4 - Connectors
 
 Add:
 
@@ -72,22 +52,21 @@ Add:
 
 ---
 
-## Phase 6 - Additional Agents
+## Phase 5 - Additional Agents
 
 Add:
 
 - Athena
 - ElizaOS
-- Additional frameworks
 
 
 ---
 
-## Phase 7 - Distributed Future
+## Phase 6 - Distributed Future
 
 Explore:
 
-- Multiple machines
+- Multiple servers
 - GPU workers
 - Cloud agents
-- Managed databases
+- Managed infrastructure
