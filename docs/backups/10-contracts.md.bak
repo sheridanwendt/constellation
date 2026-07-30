@@ -35,9 +35,7 @@ Commands represent a request for an action.
 
 Technology:
 
-HTTP REST APIs
-
-Future transports (including gRPC) may be considered through a future ADR.
+HTTP/gRPC APIs
 
 Examples:
 
@@ -86,18 +84,3 @@ Minor version increase.
 No component should depend on another component's internal implementation.
 
 Only contracts are shared.
-
-
----
-
-# Encrypted Transport Requirements
-
-Production command APIs use encrypted transport.
-
-Requirements:
-
-- HTTPS/TLS for production API communication
-- authenticated endpoints
-- protection of sensitive data in transit
-
-Local development environments may use simplified transport when isolated and documented.

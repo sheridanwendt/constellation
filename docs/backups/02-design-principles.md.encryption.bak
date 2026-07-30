@@ -79,21 +79,3 @@ New functionality should generally be added through:
 - New adapters
 
 Avoid modifying the core platform for every new capability.
-
----
-
-# Encryption Requirements
-
-Constellation security principles:
-
-- All sensitive data at rest shall be protected.
-- All production communications shall use encrypted transport.
-- All production data in transit shall be encrypted.
-
-Implementation guidance:
-
-- External interfaces shall use TLS.
-- Production service communication shall support encrypted authenticated channels.
-- Local development environments may use simplified networking when isolated and explicitly documented.
-
-Security implementations should preserve local-first operation and future cloud migration.

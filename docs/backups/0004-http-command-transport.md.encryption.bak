@@ -35,23 +35,3 @@ HTTP is preferred initially because:
 Alternative transports may be introduced internally if scale requires them.
 
 The conceptual command contract should remain unchanged.
-
----
-
-# TLS Requirement
-
-HTTP REST is the command transport pattern.
-
-Production deployments require HTTPS/TLS encryption.
-
-Local development environments may use HTTP only when:
-
-- services are isolated
-- access is restricted
-- the environment is explicitly documented as development-only
-
-Future ADRs may define:
-
-- certificate management
-- service identity
-- mutual TLS

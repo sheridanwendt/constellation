@@ -108,23 +108,3 @@ Events continue to use NATS.
 See:
 
 ADR-0004
-
----
-
-## Transport Security
-
-Production deployments shall use encrypted communication.
-
-HTTP REST commands shall use HTTPS/TLS in production environments.
-
-Phase 1 local deployments may use isolated Docker networking while the platform is being developed.
-
-Future security enhancements may include:
-
-- managed certificates
-- internal certificate authorities
-- service identity
-- mutual TLS
-- cloud identity providers
-
-Security improvements should be introduced without compromising local-first simplicity.
