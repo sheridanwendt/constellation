@@ -41,6 +41,10 @@ Installer output is also written to `logs/install-<timestamp>.log`.
 
 - **Schedule Backups**: `sudo ./scripts/schedule-backups.sh` (run once) —
   enables the weekly backup timer. See [Backups](#backups) below.
+- **Enable Command Audit**: `sudo ./scripts/audit-enable.sh` (run once) —
+  captures ad hoc commands for installer-drift review. See
+  [Keeping the Installer as Source of Truth](#keeping-the-installer-as-source-of-truth)
+  below.
 
 ## Starting
 
@@ -161,6 +165,43 @@ of a 500GB disk), that's an average of just under **1GB per backup**
 available before the oldest rotating backups start getting pruned early
 to stay under budget — ample headroom for a single-user Phase 1/2
 deployment on this hardware.
+
+## Keeping the Installer as Source of Truth
+
+Per `CLAUDE.md`, "anything required to rebuild a working platform from a
+fresh Ubuntu installation must be automated." In practice, day-to-day
+troubleshooting on the running machine (installing a missing package,
+tweaking a systemd unit, running a one-off `docker` command) happens
+outside `platform-install-Ubuntu.sh` — and if it's never fed back into the
+installer, a rebuild from scratch won't reproduce it.
+
+`scripts/audit-*.sh` is a feedback loop for catching that drift:
+
+```bash
+sudo ./scripts/audit-enable.sh   # once: start capturing interactive commands
+./scripts/audit-review.sh        # periodically: see what ran outside the installer
+sudo ./scripts/audit-disable.sh  # optional: stop capturing
+```
+
+- `audit-enable.sh` installs a small `/etc/profile.d/` hook that appends
+  every interactive shell command (timestamp, user, working directory) to
+  `logs/command-audit.log`. It takes effect in new shells.
+- `audit-review.sh` filters out routine/read-only commands (`cd`, `ls`,
+  `cat`, `git status`, etc.), deduplicates and counts what's left, and
+  flags (`✓`) any command that already appears somewhere under
+  `scripts/install/` so you're only evaluating genuinely new ones. Pass
+  `--all` to see the unfiltered raw log instead.
+
+The review step is manual by design — nothing here decides automatically
+whether a command belongs in the installer. For each candidate, either:
+
+1. Fold it into the appropriate `scripts/install/0X-*.sh` (and re-run the
+   installer end-to-end to confirm it's idempotent), or
+2. Decide it was one-off/exploratory and ignore it.
+
+This is a development aid, not a security/compliance audit tool — the log
+is world-writable/readable and captures whatever was typed, so avoid
+typing secrets directly on the command line while it's enabled.
 
 ## Data Locations
 

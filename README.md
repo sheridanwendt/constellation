@@ -99,6 +99,17 @@ sudo ./scripts/schedule-backups.sh  # enable automatic weekly backups
 Kept to a 10%-of-disk / 52-week rolling budget, with the first backup ever taken
 retained permanently. See `docs/09-operations.md` for the full policy.
 
+## Keeping the Installer Up to Date
+
+```bash
+sudo ./scripts/audit-enable.sh  # once: capture ad hoc commands run on the host
+./scripts/audit-review.sh       # periodically: review what should be folded into scripts/install/
+```
+
+Since `platform-install-Ubuntu.sh` is the source of truth for rebuilding
+the platform, this closes the loop on manual fixes/tweaks that would
+otherwise be lost on a rebuild. See `docs/09-operations.md` for details.
+
 See `docs/09-operations.md` for full operational details.
 
 ## Current Services
