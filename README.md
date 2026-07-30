@@ -41,7 +41,9 @@ leave headroom on this hardware.
 
 ## Installation
 
-On a fresh Ubuntu Server 24.04 install:
+On a fresh Ubuntu Server 24.04 install, clone anywhere convenient — the
+installer normalizes the install location for you (see
+[Install Location](#install-location) below):
 
 ```bash
 git clone <this-repo-url> constellation
@@ -49,24 +51,52 @@ cd constellation
 sudo ./platform-install-Ubuntu.sh
 ```
 
-The installer will:
+This works the same way no matter what directory you're in when you run
+it, and no matter where you cloned to. The installer will:
 
-1. Validate the OS and check disk/RAM/port pre-conditions
-2. Update apt packages and install system dependencies
-3. Install and configure SSH (see [SSH](#ssh) below)
-4. Install Docker Engine and the Docker Compose plugin
-5. Create required data/log directories
-6. Generate `.env` from `.env.example` (with a strong Postgres password)
-7. Deploy the platform with Docker Compose
-8. Run protocol-level health checks against every service (not just
-   container status) and print a summary
-9. Enable the weekly backup timer
+0. Relocate itself to the canonical install location if not already
+   there (`/opt/constellation` by default), then continue from there
+1. Take an `initial` backup checkpoint before touching anything
+2. Validate the OS and check disk/RAM/port pre-conditions
+3. Update apt packages and install system dependencies
+4. Install and configure SSH (see [SSH](#ssh) below)
+5. Install Docker Engine and the Docker Compose plugin
+6. Create required data/log directories
+7. Generate `.env` from `.env.example` (with a strong Postgres password)
+8. Take a `dependencies` backup checkpoint (host prepared, platform not
+   deployed yet)
+9. Deploy the platform with Docker Compose
+10. Run protocol-level health checks against every service (not just
+    container status)
+11. Enable the weekly backup timer
+12. Take a final `constellation` backup checkpoint and print a summary
 
-No manual Docker (or SSH, or backup-scheduling) commands are required
-after installation. For everything that's still a manual, human-judgment
-step (verifying SSH access out-of-band, deciding on a VM snapshot,
-reviewing the installer before trusting it with root, reboot verification,
-upgrades, etc.), see **[docs/20-deployment-checklist.md](docs/20-deployment-checklist.md)**.
+No manual Docker (or SSH, backup-scheduling, or install-location) commands
+are required after installation. For everything that's still a manual,
+human-judgment step (verifying SSH access out-of-band, deciding on a VM
+snapshot, reviewing the installer before trusting it with root, reboot
+verification, upgrades, etc.), see
+**[docs/20-deployment-checklist.md](docs/20-deployment-checklist.md)**.
+
+## Install Location
+
+Constellation always ends up installed at **`/opt/constellation`**,
+regardless of where you cloned the repo or what directory you ran
+`sudo ./platform-install-Ubuntu.sh` from. If you didn't clone directly to
+`/opt/constellation`, the installer copies the checkout there (leaving
+your original clone untouched) and re-runs itself from that canonical
+path before doing anything else.
+
+This means:
+
+- Every deployment lands in the same place, so data locations, backups,
+  and any future tooling can assume a fixed path instead of guessing.
+- All the `./scripts/*.sh` helpers work from anywhere once installed —
+  they resolve their own location rather than relying on your current
+  directory.
+
+See [ADR-0006](docs/adr/0006-canonical-install-location.md) for the full
+reasoning.
 
 ## SSH
 
@@ -116,11 +146,17 @@ Data is preserved in `postgres_data/`, `qdrant_storage/`, and `data/nats/`.
 
 ## Backups
 
-Weekly automated backups are enabled by the installer itself
-(`constellation-backup.timer`) — no separate step needed after install.
+The installer takes three named checkpoint backups automatically during
+every install — `initial` (before anything is touched, becomes the
+permanent baseline), `dependencies` (host prepared, platform not deployed
+yet), and `constellation` (fully deployed and verified) — plus enables the
+weekly automated timer (`constellation-backup.timer`). No separate step
+needed after install.
 
 ```bash
 ./scripts/backup.sh                 # run a one-off backup any time
+./scripts/backup.sh my-label        # optional label (letters/digits/-/_)
+                                     # for a human-readable checkpoint name
 sudo ./scripts/schedule-backups.sh  # re-run standalone, e.g. after changing
                                      # BACKUP_* settings in .env
 ```

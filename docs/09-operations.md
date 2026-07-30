@@ -27,8 +27,16 @@ cd constellation
 sudo ./platform-install-Ubuntu.sh
 ```
 
-This runs, in order:
+This works regardless of what directory you're in or where you cloned to
+— see [Install Location](#install-location) below. It then runs, in
+order:
 
+- **Relocate** to the canonical install location
+  (`/opt/constellation` by default) if not already there, and re-exec
+  from there (see [ADR-0006](adr/0006-canonical-install-location.md))
+- **Backup checkpoint `initial`** — `scripts/backup.sh initial`, before
+  anything is touched (becomes the permanent baseline; see
+  [Backups](#backups))
 0. `scripts/install/00-preflight.sh` — validates disk space, RAM, and that
    required ports are free before touching anything
 1. `scripts/install/01-system-dependencies.sh` — `apt-get update`/`upgrade`,
@@ -39,14 +47,31 @@ This runs, in order:
 3. `scripts/install/03-docker.sh` — Docker Engine + Compose plugin
 4. `scripts/install/04-directories.sh` — persistent data/log directories
 5. `scripts/install/05-config.sh` — generates `.env` from `.env.example`
+- **Backup checkpoint `dependencies`** — `scripts/backup.sh dependencies`,
+  host prepared but the platform isn't deployed yet
 6. `scripts/install/06-deploy-platform.sh` — `docker compose up -d` and
    container-health-check wait
 7. `scripts/install/07-verify.sh` — protocol-level smoke test against each
    service (real query/API call, not just container health status)
 8. `scripts/install/08-schedule-backups.sh` — enables the weekly backup
    timer (see [Backups](#backups) below)
+- **Backup checkpoint `constellation`** — `scripts/backup.sh constellation`,
+  the platform is fully deployed and verified
 
 Installer output is also written to `logs/install-<timestamp>.log`.
+
+## Install Location
+
+`platform-install-Ubuntu.sh` always installs to `/opt/constellation`
+(override via the `CONSTELLATION_HOME` environment variable, not part of
+the supported interface), regardless of where the repository was cloned
+or what directory the installer was run from. If it detects it isn't
+already running from there, it copies the checkout over (excluding
+runtime data/logs/backups/`.env`) and re-execs itself from the canonical
+path before doing anything else. See
+[ADR-0006](adr/0006-canonical-install-location.md) for the full reasoning
+and edge cases (e.g. what happens if `/opt/constellation` already exists
+and isn't a Constellation checkout).
 
 ## Recommended Post-Install Steps
 
@@ -111,14 +136,25 @@ driver (`max-size: 10m`, `max-file: 3`) configured in `docker-compose.yml`.
 ## Backups
 
 ```bash
-./scripts/backup.sh
+./scripts/backup.sh            # backups/<timestamp>/
+./scripts/backup.sh <label>    # backups/<timestamp>-<label>/
 ```
 
-Writes a timestamped backup to `backups/<timestamp>/`:
+`<label>` is optional, letters/digits/`-`/`_` only, and exists purely so a
+human looking at `backups/` can tell checkpoints apart by name.
+`platform-install-Ubuntu.sh` uses `initial`, `dependencies`, and
+`constellation` for its three install-time checkpoints (see
+[Fresh Install](#fresh-install) above); the weekly scheduled run and
+ad hoc manual runs typically omit it.
 
-- `postgres.sql.gz` — gzipped `pg_dump` of the PostgreSQL database
-- `qdrant_storage.tar.gz` — archive of `qdrant_storage/`
+Each backup directory contains:
+
+- `postgres.sql.gz` — gzipped `pg_dump` of the PostgreSQL database (skipped
+  if Postgres isn't installed/running yet, e.g. the `initial` checkpoint)
+- `qdrant_storage.tar.gz` — archive of `qdrant_storage/` (skipped if it
+  doesn't exist yet)
 - `configs.tar.gz` — archive of `.env`, `docker-compose.yml`, and `config/`
+  (whichever of those exist yet)
 
 This is still a simple point-in-time snapshot, not a full backup system —
 there is no restore automation yet. `backups/` is gitignored; copy it
@@ -247,12 +283,16 @@ typing secrets directly on the command line while it's enabled.
 
 ## Data Locations
 
+All paths below are relative to the install root, which is
+`/opt/constellation` by default (see [Install Location](#install-location)):
+
 | Directory          | Contents                         |
 |---------------------|-----------------------------------|
 | `postgres_data/`    | PostgreSQL data directory          |
 | `qdrant_storage/`    | Qdrant collections/storage         |
 | `data/nats/`         | NATS JetStream store                |
 | `logs/`              | Installer run logs                  |
+| `backups/`           | Backup checkpoints (see [Backups](#backups)) |
 
 All of the above are excluded from git via `.gitignore`.
 

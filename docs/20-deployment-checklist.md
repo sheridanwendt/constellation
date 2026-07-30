@@ -60,9 +60,15 @@ git clone <this-repo-url> constellation
 cd constellation
 ```
 
-This can't be automated by `platform-install-Ubuntu.sh` because the
-installer lives *inside* the repository you're about to clone — there's
-nothing to run yet.
+Clone anywhere convenient — you don't need to clone directly to
+`/opt/constellation`. The installer normalizes the install location itself
+(step 7 below; see [ADR-0006](adr/0006-canonical-install-location.md)),
+so wherever you clone to here is only a staging point, not the final
+install path.
+
+This step itself can't be automated by `platform-install-Ubuntu.sh`
+because the installer lives *inside* the repository you're about to
+clone — there's nothing to run yet.
 
 ## 5. Verify repository state
 
@@ -97,11 +103,19 @@ one-time decision — the installer can't vouch for itself.
 sudo ./platform-install-Ubuntu.sh
 ```
 
-This one command now runs, in order: pre-flight validation, package
-updates/prerequisites, SSH install/config, Docker, directories, `.env`
-generation, deployment, protocol-level health verification, and enabling
-the weekly backup timer. See [Operations](09-operations.md#fresh-install)
-for the full breakdown of what each step does.
+This one command now runs, in order: relocate to the canonical install
+location (`/opt/constellation`) if not already there, an `initial` backup
+checkpoint, pre-flight validation, package updates/prerequisites, SSH
+install/config, Docker, directories, `.env` generation, a `dependencies`
+backup checkpoint, deployment, protocol-level health verification,
+enabling the weekly backup timer, and a final `constellation` backup
+checkpoint. See [Operations](09-operations.md#fresh-install) for the full
+breakdown of what each step does.
+
+If it relocates, you'll see it copy itself to `/opt/constellation` and
+re-run from there automatically — that's expected, not an error; just note
+that `/opt/constellation` (not your original clone) is where the
+platform actually lives from here on.
 
 ## 8. Validate services
 
@@ -148,9 +162,11 @@ review). If step 1's package upgrade flagged
 
 ## 11. Backup recommendations
 
-The installer enables weekly automated backups
-(`constellation-backup.timer`) by default now — no separate step needed.
-What remains manual, by design:
+The installer already took three named checkpoint backups during install
+(`initial`, `dependencies`, `constellation` — see
+[Operations § Fresh Install](09-operations.md#fresh-install)) and enables
+weekly automated backups (`constellation-backup.timer`) by default — no
+separate step needed. What remains manual, by design:
 
 - **Off-host copy.** `backups/` lives on the same disk as everything else.
   Periodically copy it somewhere durable (another machine, external drive,
@@ -165,10 +181,12 @@ policy and what's included in each backup.
 ## 12. Upgrade workflow
 
 Not yet automated (tracked for a later phase — see
-`docs/09-operations.md#future-operational-tools`). Until then:
+`docs/09-operations.md#future-operational-tools`). Until then, run this
+against the canonical install (`/opt/constellation` by default, not your
+original clone location if they differ):
 
 ```bash
-cd constellation
+cd /opt/constellation
 git status                    # confirm a clean tree first
 git fetch origin
 git log HEAD..origin/main --oneline   # see what's changing
@@ -222,6 +240,9 @@ architecture (`CLAUDE.md`):
       memory or shell history.
 - [ ] The deployment is reproducible — a second run of the installer on
       the same or a fresh machine produces the same result.
+- [ ] The install lands in the same place every time
+      (`/opt/constellation` by default) regardless of where it was cloned
+      or run from.
 - [ ] Manual steps are limited to what's in this document; anything else
       done by hand is a signal to update the installer (via the feedback
       loop) or this checklist.

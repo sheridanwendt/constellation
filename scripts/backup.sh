@@ -10,7 +10,12 @@
 # yet — but it now supports safe unattended/scheduled use (see
 # scripts/schedule-backups.sh).
 #
-# Usage: ./scripts/backup.sh
+# Usage: ./scripts/backup.sh [label]
+#   label   Optional, alphanumeric/dash/underscore only. Appended to the
+#           backup directory name (e.g. "initial", "dependencies",
+#           "constellation") so a human can tell checkpoints apart.
+#           platform-install-Ubuntu.sh uses this to mark install-time
+#           checkpoints; scheduled/manual runs typically omit it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,6 +24,12 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 REPO_ROOT="$(constellation_repo_root)"
 cd "${REPO_ROOT}"
+
+LABEL="${1:-}"
+if [[ -n "${LABEL}" && ! "${LABEL}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    log_error "Invalid label '${LABEL}': only letters, numbers, '-', and '_' are allowed."
+    exit 1
+fi
 
 if [[ -f .env ]]; then
     set -a
@@ -45,19 +56,24 @@ if compgen -G "backups/[0-9]*-[0-9]*" >/dev/null 2>&1; then
 fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-BACKUP_DIR="backups/${TIMESTAMP}"
+if [[ -n "${LABEL}" ]]; then
+    BACKUP_DIR="backups/${TIMESTAMP}-${LABEL}"
+else
+    BACKUP_DIR="backups/${TIMESTAMP}"
+fi
+BACKUP_NAME="$(basename "${BACKUP_DIR}")"
 mkdir -p "${BACKUP_DIR}"
 
 log_info "Writing backup to ${BACKUP_DIR}/"
 
 # --- PostgreSQL ---
-if [[ -n "$(docker compose ps --status running --quiet postgres)" ]]; then
+if command_exists docker && [[ -n "$(docker compose ps --status running --quiet postgres 2>/dev/null)" ]]; then
     log_info "Dumping PostgreSQL database..."
     docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
         | gzip > "${BACKUP_DIR}/postgres.sql.gz"
     log_success "PostgreSQL dump saved: ${BACKUP_DIR}/postgres.sql.gz"
 else
-    log_warn "postgres container is not running, skipping database dump."
+    log_warn "postgres container is not running (or Docker isn't installed yet), skipping database dump."
 fi
 
 # --- Qdrant ---
@@ -88,8 +104,8 @@ log_success "Backup complete: ${REPO_ROOT}/${BACKUP_DIR}"
 
 # --- Mark the first-ever backup as permanent ---
 if [[ ! -f "${PERMANENT_MARKER}" && "${PRIOR_BACKUP_EXISTS}" == "false" ]]; then
-    echo "${TIMESTAMP}" > "${PERMANENT_MARKER}"
-    log_success "Marked ${TIMESTAMP} as the permanent backup (never auto-pruned)."
+    echo "${BACKUP_NAME}" > "${PERMANENT_MARKER}"
+    log_success "Marked ${BACKUP_NAME} as the permanent backup (never auto-pruned)."
 fi
 
 # --- Retention: prune oldest backups by count, then by total size ---
