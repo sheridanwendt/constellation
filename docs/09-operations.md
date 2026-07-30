@@ -124,18 +124,22 @@ sudo systemctl disable --now constellation-backup.timer  # turn off
 
 ### Retention policy
 
-Backups are capped at **50GB total** (`BACKUP_MAX_TOTAL_GB` in `.env`,
-default `50`) and **52 rotating backups** (`BACKUP_RETENTION_COUNT`,
-default `52`, i.e. a year of weekly backups). Every run of
-`scripts/backup.sh`:
+Backups are capped at **10% of total disk space**
+(`BACKUP_MAX_TOTAL_PERCENT` in `.env`, default `10`) and **52 rotating
+backups** (`BACKUP_RETENTION_COUNT`, default `52`, i.e. a year of weekly
+backups). The size budget is computed fresh on every run via `df` against
+the disk hosting this repo, so it scales automatically if you move to
+different or larger hardware — on the 500GB Optiplex target, 10% is
+~50GB. Every run of `scripts/backup.sh`:
 
 1. The **first backup ever taken** is marked permanent (recorded in
    `backups/.permanent`) and is never auto-deleted.
 2. If more than `BACKUP_RETENTION_COUNT` non-permanent backups exist, the
    oldest are removed until back within the limit.
-3. If total size in `backups/` still exceeds `BACKUP_MAX_TOTAL_GB`, the
-   oldest non-permanent backups are removed further, even below the count
-   limit, until back within budget (or only the permanent backup remains).
+3. If total size in `backups/` still exceeds the computed percentage
+   budget, the oldest non-permanent backups are removed further, even
+   below the count limit, until back within budget (or only the permanent
+   backup remains).
 
 Both limits are configurable in `.env` without editing the script.
 
@@ -152,10 +156,11 @@ archive. Size will grow with real usage in later phases, roughly:
   per vector plus index overhead (~1.5–2x), e.g. ~100k vectors at 1536
   dimensions is on the order of several hundred MB.
 
-At 53 retained backups (1 permanent + 52 weekly) and a 50GB budget, that's
-an average of just under **1GB per backup** available before the oldest
-rotating backups start getting pruned early to stay under budget — ample
-headroom for a single-user Phase 1/2 deployment on this hardware.
+At 53 retained backups (1 permanent + 52 weekly) and a ~50GB budget (10%
+of a 500GB disk), that's an average of just under **1GB per backup**
+available before the oldest rotating backups start getting pruned early
+to stay under budget — ample headroom for a single-user Phase 1/2
+deployment on this hardware.
 
 ## Data Locations
 

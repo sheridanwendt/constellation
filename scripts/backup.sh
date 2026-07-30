@@ -3,7 +3,8 @@
 # then enforces retention: the first backup ever taken is kept forever;
 # beyond that, up to BACKUP_RETENTION_COUNT weekly backups are kept, and
 # the oldest are pruned first if total backup storage exceeds
-# BACKUP_MAX_TOTAL_GB. See docs/09-operations.md for the full policy.
+# BACKUP_MAX_TOTAL_PERCENT of the disk hosting this repo. See
+# docs/09-operations.md for the full policy.
 #
 # This is still not a full backup system — there is no restore automation
 # yet — but it now supports safe unattended/scheduled use (see
@@ -27,7 +28,11 @@ if [[ -f .env ]]; then
 fi
 
 BACKUP_RETENTION_COUNT="${BACKUP_RETENTION_COUNT:-52}"
-BACKUP_MAX_TOTAL_GB="${BACKUP_MAX_TOTAL_GB:-50}"
+BACKUP_MAX_TOTAL_PERCENT="${BACKUP_MAX_TOTAL_PERCENT:-10}"
+if ! [[ "${BACKUP_MAX_TOTAL_PERCENT}" =~ ^[0-9]+$ ]] || [[ "${BACKUP_MAX_TOTAL_PERCENT}" -lt 1 ]] || [[ "${BACKUP_MAX_TOTAL_PERCENT}" -gt 100 ]]; then
+    log_warn "BACKUP_MAX_TOTAL_PERCENT='${BACKUP_MAX_TOTAL_PERCENT}' is invalid (expected 1-100), defaulting to 10."
+    BACKUP_MAX_TOTAL_PERCENT=10
+fi
 PERMANENT_MARKER="backups/.permanent"
 
 mkdir -p backups
@@ -106,18 +111,23 @@ while [[ "${#ROTATABLE[@]}" -gt "${BACKUP_RETENTION_COUNT}" ]]; do
     ROTATABLE=("${ROTATABLE[@]:1}")
 done
 
-MAX_BYTES=$((BACKUP_MAX_TOTAL_GB * 1024 * 1024 * 1024))
+DISK_TOTAL_BYTES="$(df --output=size -B1 "${REPO_ROOT}" | tail -n1 | tr -d '[:space:]')"
+MAX_BYTES=$(( DISK_TOTAL_BYTES * BACKUP_MAX_TOTAL_PERCENT / 100 ))
+MAX_GB_DISPLAY=$(( MAX_BYTES / 1024 / 1024 / 1024 ))
+
+log_info "Backup storage budget: ${BACKUP_MAX_TOTAL_PERCENT}% of disk (~${MAX_GB_DISPLAY}GB)"
+
 while [[ "$(du -sb backups | cut -f1)" -gt "${MAX_BYTES}" && "${#ROTATABLE[@]}" -gt 0 ]]; do
     oldest="${ROTATABLE[0]}"
-    log_warn "Backup storage budget (${BACKUP_MAX_TOTAL_GB}GB) exceeded, removing oldest: ${oldest}"
+    log_warn "Backup storage budget (~${MAX_GB_DISPLAY}GB) exceeded, removing oldest: ${oldest}"
     rm -rf "backups/${oldest}"
     ROTATABLE=("${ROTATABLE[@]:1}")
 done
 
 TOTAL_SIZE="$(du -sh backups | cut -f1)"
-log_info "Total backup storage in use: ${TOTAL_SIZE} (budget: ${BACKUP_MAX_TOTAL_GB}GB)"
+log_info "Total backup storage in use: ${TOTAL_SIZE} (budget: ~${MAX_GB_DISPLAY}GB, ${BACKUP_MAX_TOTAL_PERCENT}% of disk)"
 
 if [[ "$(du -sb backups | cut -f1)" -gt "${MAX_BYTES}" ]]; then
-    log_warn "Backup storage still exceeds the ${BACKUP_MAX_TOTAL_GB}GB budget after pruning all rotatable backups."
-    log_warn "Only the permanent backup (${PERMANENT_BACKUP:-none}) and/or the newest backup remain here; free disk space manually or lower BACKUP_MAX_TOTAL_GB / BACKUP_RETENTION_COUNT."
+    log_warn "Backup storage still exceeds the ~${MAX_GB_DISPLAY}GB (${BACKUP_MAX_TOTAL_PERCENT}%) budget after pruning all rotatable backups."
+    log_warn "Only the permanent backup (${PERMANENT_BACKUP:-none}) and/or the newest backup remain here; free disk space manually or lower BACKUP_MAX_TOTAL_PERCENT / BACKUP_RETENTION_COUNT."
 fi

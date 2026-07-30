@@ -96,7 +96,7 @@ Data is preserved in `postgres_data/`, `qdrant_storage/`, and `data/nats/`.
 sudo ./scripts/schedule-backups.sh  # enable automatic weekly backups
 ```
 
-Kept to a 50GB / 52-week rolling budget, with the first backup ever taken
+Kept to a 10%-of-disk / 52-week rolling budget, with the first backup ever taken
 retained permanently. See `docs/09-operations.md` for the full policy.
 
 See `docs/09-operations.md` for full operational details.
