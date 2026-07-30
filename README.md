@@ -51,15 +51,40 @@ sudo ./platform-install-Ubuntu.sh
 
 The installer will:
 
-1. Validate the OS
-2. Install system dependencies
-3. Install Docker Engine and the Docker Compose plugin
-4. Create required data/log directories
-5. Generate `.env` from `.env.example` (with a strong Postgres password)
-6. Deploy the platform with Docker Compose
-7. Wait for all services to report healthy and print a summary
+1. Validate the OS and check disk/RAM/port pre-conditions
+2. Update apt packages and install system dependencies
+3. Install and configure SSH (see [SSH](#ssh) below)
+4. Install Docker Engine and the Docker Compose plugin
+5. Create required data/log directories
+6. Generate `.env` from `.env.example` (with a strong Postgres password)
+7. Deploy the platform with Docker Compose
+8. Run protocol-level health checks against every service (not just
+   container status) and print a summary
+9. Enable the weekly backup timer
 
-No manual Docker commands are required after installation.
+No manual Docker (or SSH, or backup-scheduling) commands are required
+after installation. For everything that's still a manual, human-judgment
+step (verifying SSH access out-of-band, deciding on a VM snapshot,
+reviewing the installer before trusting it with root, reboot verification,
+upgrades, etc.), see **[docs/20-deployment-checklist.md](docs/20-deployment-checklist.md)**.
+
+## SSH
+
+`platform-install-Ubuntu.sh` ensures `openssh-server` is installed and
+running, and generates two key pairs:
+
+- A dedicated automation/deploy key at
+  `/etc/constellation/ssh/deploy_ed25519` for future non-interactive use
+  (not authorized for login anywhere by default).
+- A personal login key for the operator running the installer
+  (`~/.ssh/id_ed25519`), added to that user's own `authorized_keys`.
+
+It deliberately leaves **both password and public-key login enabled** —
+it only ever adds a login method, never removes one. See
+[ADR-0005](docs/adr/0005-ssh-bootstrap.md) for the full reasoning and why
+hardening (disabling password auth) is intentionally left as a separate,
+explicit, human-initiated action rather than something the installer does
+on its own.
 
 ## Starting the Platform
 
@@ -91,26 +116,65 @@ Data is preserved in `postgres_data/`, `qdrant_storage/`, and `data/nats/`.
 
 ## Backups
 
+Weekly automated backups are enabled by the installer itself
+(`constellation-backup.timer`) — no separate step needed after install.
+
 ```bash
-./scripts/backup.sh                 # one-off backup
-sudo ./scripts/schedule-backups.sh  # enable automatic weekly backups
+./scripts/backup.sh                 # run a one-off backup any time
+sudo ./scripts/schedule-backups.sh  # re-run standalone, e.g. after changing
+                                     # BACKUP_* settings in .env
 ```
 
 Kept to a 10%-of-disk / 52-week rolling budget, with the first backup ever taken
 retained permanently. See `docs/09-operations.md` for the full policy.
 
-## Keeping the Installer Up to Date
+## Installer Feedback Loop
+
+**Why it exists:** per `CLAUDE.md`, `platform-install-Ubuntu.sh` is the
+source of truth for rebuilding Constellation from scratch. But real
+administration happens on the running host too — a one-off `apt install`,
+a config tweak, a firewall rule — and none of that gets captured unless
+something is watching. Left alone, that drift means a from-scratch rebuild
+silently *doesn't* reproduce the box you're actually running. This is how
+the installer is meant to get more complete after every real deployment,
+not just at design time.
+
+**When to enable it:** once, right after a successful install:
 
 ```bash
-sudo ./scripts/audit-enable.sh  # once: capture ad hoc commands run on the host
-./scripts/audit-review.sh       # periodically: review what should be folded into scripts/install/
+sudo ./scripts/audit-enable.sh
 ```
 
-Since `platform-install-Ubuntu.sh` is the source of truth for rebuilding
-the platform, this closes the loop on manual fixes/tweaks that would
-otherwise be lost on a rebuild. See `docs/09-operations.md` for details.
+This installs a small `/etc/profile.d/` hook that logs every interactive
+shell command (timestamp, user, working directory) to
+`logs/command-audit.log`. It's a development aid, not a security/compliance
+tool — avoid typing secrets on the command line while it's on, and turn it
+off with `sudo ./scripts/audit-disable.sh` if you don't want it running.
 
-See `docs/09-operations.md` for full operational details.
+**When to review it:** periodically, whenever you've done any hands-on
+administration since the last review:
+
+```bash
+./scripts/audit-review.sh
+```
+
+This filters out routine/read-only noise (`cd`, `ls`, `git status`, …),
+dedupes and counts what's left, flags (`✓`) anything that already exists
+somewhere under `scripts/install/`, and suggests which script a new
+candidate likely belongs in. Use `--all` to see the unfiltered raw log.
+
+**How it improves Constellation over time:** for each surviving candidate,
+you make an explicit human call — fold it into the right
+`scripts/install/0X-*.sh` (or another automation script) and re-run the
+installer end-to-end to confirm it's still idempotent, or decide it was
+genuinely one-off and leave it out. Nothing is applied automatically; the
+loop only ever proposes, a person always decides. That's what keeps the
+installer honest as the single source of truth instead of just one more
+place configuration can drift from reality.
+
+See [docs/20-deployment-checklist.md](docs/20-deployment-checklist.md) for
+where this fits in the full deployment checklist, and
+`docs/09-operations.md` for full operational details.
 
 ## Current Services
 

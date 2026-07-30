@@ -29,22 +29,38 @@ sudo ./platform-install-Ubuntu.sh
 
 This runs, in order:
 
-1. `scripts/install/01-system-dependencies.sh` — base apt packages
-2. `scripts/install/02-docker.sh` — Docker Engine + Compose plugin
-3. `scripts/install/03-directories.sh` — persistent data/log directories
-4. `scripts/install/04-config.sh` — generates `.env` from `.env.example`
-5. `scripts/install/05-deploy-platform.sh` — `docker compose up -d` and health-check wait
+0. `scripts/install/00-preflight.sh` — validates disk space, RAM, and that
+   required ports are free before touching anything
+1. `scripts/install/01-system-dependencies.sh` — `apt-get update`/`upgrade`,
+   base apt packages
+2. `scripts/install/02-ssh.sh` — installs/enables `openssh-server`, keeps
+   both password and public-key auth enabled, generates the deploy and
+   operator login keys (see [ADR-0005](adr/0005-ssh-bootstrap.md))
+3. `scripts/install/03-docker.sh` — Docker Engine + Compose plugin
+4. `scripts/install/04-directories.sh` — persistent data/log directories
+5. `scripts/install/05-config.sh` — generates `.env` from `.env.example`
+6. `scripts/install/06-deploy-platform.sh` — `docker compose up -d` and
+   container-health-check wait
+7. `scripts/install/07-verify.sh` — protocol-level smoke test against each
+   service (real query/API call, not just container health status)
+8. `scripts/install/08-schedule-backups.sh` — enables the weekly backup
+   timer (see [Backups](#backups) below)
 
 Installer output is also written to `logs/install-<timestamp>.log`.
 
 ## Recommended Post-Install Steps
 
-- **Schedule Backups**: `sudo ./scripts/schedule-backups.sh` (run once) —
-  enables the weekly backup timer. See [Backups](#backups) below.
+Backups and SSH are handled automatically by the installer now (steps 2
+and 8 above). What's left is a single manual step:
+
 - **Enable Command Audit**: `sudo ./scripts/audit-enable.sh` (run once) —
   captures ad hoc commands for installer-drift review. See
   [Keeping the Installer as Source of Truth](#keeping-the-installer-as-source-of-truth)
   below.
+
+See [docs/20-deployment-checklist.md](20-deployment-checklist.md) for the
+complete operator checklist, including everything that's intentionally
+*not* automated.
 
 ## Starting
 
@@ -111,6 +127,10 @@ somewhere durable (off this machine) if it needs to survive a disk failure.
 
 ### Automatic weekly backups
 
+Enabled automatically by `scripts/install/08-schedule-backups.sh` as the
+last step of every install. Re-run it directly any time (e.g. after
+changing `BACKUP_*` settings in `.env`):
+
 ```bash
 sudo ./scripts/schedule-backups.sh
 ```
@@ -165,6 +185,28 @@ of a 500GB disk), that's an average of just under **1GB per backup**
 available before the oldest rotating backups start getting pruned early
 to stay under budget — ample headroom for a single-user Phase 1/2
 deployment on this hardware.
+
+## SSH
+
+Installed and configured automatically by `scripts/install/02-ssh.sh`.
+Full reasoning in [ADR-0005](adr/0005-ssh-bootstrap.md); summary:
+
+- `openssh-server` is installed and enabled if not already present.
+- Both `PasswordAuthentication` and `PubkeyAuthentication` are explicitly
+  kept enabled via `/etc/ssh/sshd_config.d/60-constellation.conf` — the
+  installer only ever adds a login method, never removes one.
+- A dedicated automation/deploy key is generated at
+  `/etc/constellation/ssh/deploy_ed25519` for future non-interactive use.
+  It is not authorized for login anywhere by default.
+- A personal login key is generated for the operator running the
+  installer (`~/.ssh/id_ed25519`, only if one doesn't already exist) and
+  added to that user's own `~/.ssh/authorized_keys`.
+- Host key fingerprints are printed on every install run for out-of-band
+  verification (see [Deployment Checklist § Verify SSH access](20-deployment-checklist.md)).
+
+Deliberately out of scope for the installer: disabling password auth,
+restricting to specific keys, or any other hardening. That remains a
+separate, explicit, operator-initiated action.
 
 ## Keeping the Installer as Source of Truth
 

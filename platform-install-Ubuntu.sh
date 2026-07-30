@@ -32,11 +32,15 @@ require_root
 check_ubuntu_version
 
 STEPS=(
+    "00-preflight.sh"
     "01-system-dependencies.sh"
-    "02-docker.sh"
-    "03-directories.sh"
-    "04-config.sh"
-    "05-deploy-platform.sh"
+    "02-ssh.sh"
+    "03-docker.sh"
+    "04-directories.sh"
+    "05-config.sh"
+    "06-deploy-platform.sh"
+    "07-verify.sh"
+    "08-schedule-backups.sh"
 )
 
 for step in "${STEPS[@]}"; do
@@ -69,6 +73,16 @@ cat <<EOF
     ./scripts/stop.sh      Stop the platform
     ./scripts/start.sh     Start the platform
     ./scripts/restart.sh   Restart the platform
+
+  Already handled by this run:
+    - Weekly backups are scheduled (systemctl status constellation-backup.timer)
+    - SSH is installed/configured; both password and key login work
+      (deploy key: /etc/constellation/ssh/deploy_ed25519.pub)
+
+  Recommended next step:
+    sudo ./scripts/audit-enable.sh   Capture ad hoc commands so they can be
+                                      folded back into scripts/install/ later.
+                                      See docs/20-deployment-checklist.md.
 
   See docs/09-operations.md for full operational details.
 

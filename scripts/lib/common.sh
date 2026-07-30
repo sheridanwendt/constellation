@@ -63,3 +63,14 @@ check_ubuntu_version() {
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+# True if something is already listening on the given TCP port.
+port_in_use() {
+    local port="$1"
+    ss -H -ltn "sport = :${port}" 2>/dev/null | grep -q .
+}
+
+# Resolves the home directory of a system user without assuming /home/<user>.
+user_home_dir() {
+    getent passwd "$1" | cut -d: -f6
+}
