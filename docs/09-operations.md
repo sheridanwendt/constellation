@@ -83,6 +83,24 @@ define container-level healthchecks in `docker-compose.yml`.
 Container logs are also rotated automatically via the `json-file` logging
 driver (`max-size: 10m`, `max-file: 3`) configured in `docker-compose.yml`.
 
+## Backups
+
+```bash
+./scripts/backup.sh
+```
+
+Writes a timestamped backup to `backups/<timestamp>/`:
+
+- `postgres.sql` — `pg_dump` of the PostgreSQL database
+- `qdrant_storage.tar.gz` — archive of `qdrant_storage/`
+- `configs.tar.gz` — archive of `.env`, `docker-compose.yml`, and `config/`
+
+This is a simple point-in-time snapshot, not a full backup system — there is
+no scheduling, retention, or restore automation yet. `backups/` is
+gitignored; copy it somewhere durable (off this machine) if it needs to
+survive a disk failure. `configs.tar.gz` contains `.env`, so treat it as a
+secret.
+
 ## Data Locations
 
 | Directory          | Contents                         |
@@ -104,6 +122,7 @@ alongside other Docker workloads on the same host.
 
 Not yet implemented; planned for a later phase:
 
-- Automated backup / restore scripts
+- Restore automation (from `scripts/backup.sh` output)
+- Scheduled/automated backups and retention
 - Update / upgrade tooling
 - Deeper diagnostics

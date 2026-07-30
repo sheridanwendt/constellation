@@ -20,3 +20,5 @@ qdrant_storage/
 postgres_data/
 
 node_modules/
+
+backups/
