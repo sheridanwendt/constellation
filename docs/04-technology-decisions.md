@@ -94,3 +94,17 @@ Reason:
 - Fast
 - Designed for event-driven architectures
 - Cloud ready
+
+---
+
+## HTTP Command Transport
+
+Decision:
+
+Use HTTP REST for synchronous commands.
+
+Events continue to use NATS.
+
+See:
+
+ADR-0004

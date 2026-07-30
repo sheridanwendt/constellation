@@ -151,6 +151,47 @@ Used for:
 - Semantic retrieval
 
 
+---
+
+# Communication Model
+
+Constellation uses two communication patterns.
+
+## Events
+
+Technology:
+
+NATS
+
+Used for asynchronous state changes.
+
+Examples:
+
+- task.created
+- task.completed
+- memory.updated
+
+
+## Commands
+
+Technology:
+
+HTTP REST
+
+Used for synchronous requests.
+
+Examples:
+
+- skill invocation
+- memory queries
+- agent operations
+
+
+See:
+
+docs/adr/0004-http-command-transport.md
+
+
 Future migration:
 
-Supabase PostgreSQL + pgvector
+Supabase PostgreSQL + pgvector 

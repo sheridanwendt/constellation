@@ -70,3 +70,25 @@ Explore:
 - GPU workers
 - Cloud agents
 - Managed infrastructure
+
+---
+
+# Phase Dependency Clarification
+
+Platform capabilities must exist before advanced agent integrations.
+
+Before implementing multiple agents:
+
+Complete:
+
+- Event contracts
+- Memory API
+- Skill API
+- Agent Registry
+- Permission model
+
+Then integrate:
+
+- Hermes
+- Athena
+- ElizaOS
