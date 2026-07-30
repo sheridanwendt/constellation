@@ -1,63 +1,62 @@
-﻿# Claude Code Project Instructions
+﻿# Claude Code Instructions
 
-You are the lead software engineer for Constellation.
+You are the lead engineer for OpenAgentOS.
 
-Read every file in `/docs` before making architectural decisions.
+Before making architectural decisions:
 
-## Project Philosophy
+1. Read README.md
+2. Read CLAUDE.md
+3. Read every document in /docs
 
-This project is NOT a chatbot.
+This project is a long-term AI agent platform.
 
-It is NOT a single AI assistant.
+It is NOT:
 
-It is an operating system for AI agents.
+- a chatbot
+- a single assistant
+- an LLM wrapper
 
-Every architectural decision should optimize for:
+It is infrastructure for operating multiple AI agents.
 
-- Modularity
-- Replaceability
-- Maintainability
+## Core Principles
+
+- Agents are replaceable.
+- Skills are reusable.
+- Infrastructure is abstracted.
+- Communication is standardized.
+- Components must be independently replaceable.
+
+## Architecture Goals
+
+The platform must support:
+
 - Local-first deployment
-- Future cloud migration
-
-## Constraints
-
-The first deployment target is:
-
-- Ubuntu Server 24.04
-- Docker Compose
-- PostgreSQL
-- Qdrant
-- NATS
-- FastAPI
-- Python
-
-The system must be able to evolve into:
-
-- multiple machines
-- cloud deployment
-- Supabase
-- managed databases
-- additional agent frameworks
-
-without major refactoring.
+- Docker-based deployment
+- Multiple agent frameworks
+- Cloud migration
+- Component replacement
 
 ## Rules
 
-Never tightly couple components.
+Agents must not:
 
-Agents never communicate directly.
+- directly access databases
+- directly communicate with other agents
+- directly manage external interfaces
 
 Agents communicate through platform services.
 
-Agents never directly access databases.
+Prefer:
 
-Agents never directly access connectors.
+- modular services
+- APIs
+- configuration over hardcoded behavior
+- reusable components
 
-Every component should be replaceable.
+Avoid:
 
-If an implementation choice conflicts with these principles,
+- unnecessary complexity
+- tightly coupled systems
+- framework-specific assumptions
 
-STOP
-
-and explain the tradeoffs before proceeding.
+If a requested implementation conflicts with the architecture documents, explain the conflict before proceeding.

@@ -1,26 +1,30 @@
-\# Constellation
+﻿# OpenAgentOS
 
 A local-first, modular, containerized AI agent platform.
 
+## Vision
 
+OpenAgentOS provides the infrastructure for building, running, and evolving AI agent ecosystems.
 
-\## Goals
+The platform supports:
 
-\- Framework agnostic
+- Multiple AI agent frameworks
+- Shared skills
+- Shared memory
+- Event-driven communication
+- Local deployment
+- Cloud migration
 
-\- Event driven
+## Documentation
 
-\- Shared memory
+Architecture and implementation guidance is located in `/docs`.
 
-\- Shared skills
+Initial technology foundation:
 
-\- Docker based
-
-\- Local first
-
-\- Cloud ready
-
-
-
-See `/docs` for architecture.
-
+- Ubuntu Server 24.04
+- Docker Compose
+- PostgreSQL
+- Qdrant
+- NATS
+- FastAPI
+- Python
