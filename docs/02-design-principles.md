@@ -2,7 +2,11 @@
 
 ## Modularity
 
-Each component should have clear responsibilities.
+Each component should have clear responsibilities and boundaries.
+
+Constellation should be composed of replaceable modules rather than one monolithic application.
+
+---
 
 ## Replaceability
 
@@ -16,33 +20,62 @@ Qdrant -> Managed vector database
 
 Local agents -> Cloud agents
 
-## Event Driven
+Docker Compose -> Future orchestration systems
 
-Components communicate through events.
+---
+
+## Event Driven Communication
+
+Components communicate through standardized events.
 
 Examples:
 
-message.received
+- message.received
+- task.created
+- task.completed
+- memory.updated
+- agent.status.changed
 
-task.created
+Agents should subscribe and publish events rather than directly calling each other.
 
-task.completed
+---
 
-memory.updated
-
-## Abstraction
+## Infrastructure Abstraction
 
 Agents should not know:
 
-- Database implementations
-- Deployment location
-- User interface details
+- database implementations
+- deployment location
+- user interface details
+- infrastructure providers
 
-## Composition
+Agents interact through platform services.
 
-Add functionality through:
+---
+
+## Shared Capabilities
+
+Skills belong to the platform, not individual agents.
+
+Examples:
+
+- Search
+- Browser automation
+- Filesystem access
+- Email
+- Calendar
+- MCP tools
+- External APIs
+
+---
+
+## Composition Over Modification
+
+New functionality should generally be added through:
 
 - New agents
 - New skills
 - New connectors
 - New adapters
+
+Avoid modifying the core platform for every new capability.

@@ -1,6 +1,6 @@
 ﻿# Claude Code Instructions
 
-You are the lead engineer for OpenAgentOS.
+You are the lead engineer for Constellation.
 
 Before making architectural decisions:
 
@@ -8,9 +8,9 @@ Before making architectural decisions:
 2. Read CLAUDE.md
 3. Read every document in /docs
 
-This project is a long-term AI agent platform.
+Constellation is a long-term AI agent platform.
 
-It is NOT:
+This project is NOT:
 
 - a chatbot
 - a single assistant
@@ -28,7 +28,7 @@ It is infrastructure for operating multiple AI agents.
 
 ## Architecture Goals
 
-The platform must support:
+Constellation must support:
 
 - Local-first deployment
 - Docker-based deployment

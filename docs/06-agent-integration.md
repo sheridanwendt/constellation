@@ -2,9 +2,25 @@
 
 Agents integrate through adapters.
 
-The platform should not depend on framework internals.
+Constellation should never become dependent on a specific agent framework.
 
-Example:
+---
+
+## Adapter Responsibilities
+
+Adapters handle:
+
+- Framework lifecycle
+- Input translation
+- Output translation
+- Event publishing
+- Skill access
+- Memory access
+
+
+---
+
+## Example
 
 Hermes
 
@@ -14,14 +30,31 @@ Hermes Adapter
 
 ↓
 
-Platform Services
+Constellation Platform
 
 
-Adapters handle:
+---
 
-- Event translation
-- Lifecycle management
-- Skill access
-- Memory access
+## Rules
 
-Do not modify external frameworks unless necessary.
+Agents should not:
+
+- directly access databases
+- directly access Telegram
+- directly access other agents
+- directly manage infrastructure
+
+The adapter provides the boundary.
+
+---
+
+## Adding New Frameworks
+
+Adding a new agent framework should generally require:
+
+1. Creating an adapter
+2. Creating deployment configuration
+3. Registering capabilities
+4. Defining event subscriptions
+
+The core platform should remain unchanged.

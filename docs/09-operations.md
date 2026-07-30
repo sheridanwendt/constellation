@@ -1,31 +1,33 @@
 ﻿# Operations
 
-The platform should be rebuildable from scratch.
+Constellation should be rebuildable from scratch.
 
-Important operational capabilities:
+The system should support:
 
+- Fresh Ubuntu installation
+- Automated dependency installation
+- Container deployment
+- Data restoration
+- Health checks
+
+
+## Recovery Goal
+
+A new machine should be recoverable using:
+
+- Repository
 - Installation scripts
-- Backups
-- Restore procedures
+- Configuration backups
+- Data backups
+
+
+## Future Operational Tools
+
+Scripts should eventually support:
+
+- Backup
+- Restore
+- Logs
 - Health checks
 - Updates
-
-Target workflow:
-
-Fresh Ubuntu install
-
-↓
-
-Run installation script
-
-↓
-
-Deploy containers
-
-↓
-
-Restore data
-
-↓
-
-Platform operational
+- Diagnostics

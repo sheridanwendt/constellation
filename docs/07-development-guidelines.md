@@ -1,17 +1,42 @@
 ﻿# Development Guidelines
 
-Before implementing:
+## Before Implementing
 
-- Understand architecture
-- Preserve boundaries
-- Prefer interfaces
+Review:
 
-Avoid:
+- Vision
+- Architecture
+- Technology decisions
+- Project plan
 
+
+---
+
+## Prefer
+
+- Clear interfaces
+- Small modules
+- Configuration driven behavior
+- Documentation
+- Tests
+
+
+---
+
+## Avoid
+
+- Tight coupling
 - Hardcoded dependencies
-- Direct database access
-- Framework lock-in
+- Framework-specific assumptions
+- Premature optimization
 
-Every component should answer:
 
-"Could this be replaced later?"
+---
+
+## Migration Question
+
+For every major decision ask:
+
+"Could this component be replaced later without changing the rest of the system?"
+
+If not, improve the abstraction.

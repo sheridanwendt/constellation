@@ -1,10 +1,10 @@
-﻿# OpenAgentOS
+﻿# Constellation
 
 A local-first, modular, containerized AI agent platform.
 
 ## Vision
 
-OpenAgentOS provides the infrastructure for building, running, and evolving AI agent ecosystems.
+Constellation provides the infrastructure for building, running, and evolving ecosystems of collaborating AI agents.
 
 The platform supports:
 
