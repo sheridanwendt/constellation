@@ -37,6 +37,11 @@ This runs, in order:
 
 Installer output is also written to `logs/install-<timestamp>.log`.
 
+## Recommended Post-Install Steps
+
+- **Schedule Backups**: `sudo ./scripts/schedule-backups.sh` (run once) —
+  enables the weekly backup timer. See [Backups](#backups) below.
+
 ## Starting
 
 ```bash
