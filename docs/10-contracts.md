@@ -35,7 +35,9 @@ Commands represent a request for an action.
 
 Technology:
 
-HTTP/gRPC APIs
+HTTP REST APIs
+
+Future transports (including gRPC) may be considered through a future ADR.
 
 Examples:
 
@@ -84,3 +86,4 @@ Minor version increase.
 No component should depend on another component's internal implementation.
 
 Only contracts are shared.
+
