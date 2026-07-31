@@ -17,6 +17,19 @@ log_info "Starting Constellation infrastructure stack..."
 docker compose up -d
 
 SERVICES=(constellation-postgres constellation-qdrant constellation-nats)
+
+log_info "Verifying containers were created..."
+MISSING=()
+for container in "${SERVICES[@]}"; do
+    docker inspect "${container}" >/dev/null 2>&1 || MISSING+=("${container}")
+done
+if [[ "${#MISSING[@]}" -gt 0 ]]; then
+    log_error "Container(s) never got created by 'docker compose up': ${MISSING[*]}"
+    docker compose ps
+    exit 1
+fi
+log_success "All containers exist: ${SERVICES[*]}"
+
 MAX_WAIT_SECONDS=120
 ELAPSED=0
 

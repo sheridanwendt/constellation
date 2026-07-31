@@ -106,25 +106,35 @@ sudo ./platform-install-Ubuntu.sh
 This one command now runs, in order: relocate to the canonical install
 location (`/opt/constellation`) if not already there, an `initial` backup
 checkpoint, pre-flight validation, package updates/prerequisites, SSH
-install/config, Docker, directories, `.env` generation, a `dependencies`
-backup checkpoint, deployment, protocol-level health verification,
-enabling the weekly backup timer, and a final `constellation` backup
-checkpoint. See [Operations](09-operations.md#fresh-install) for the full
-breakdown of what each step does.
+install/config, Docker, directories, self-validated `.env` generation, a
+`dependencies` backup checkpoint, deployment, protocol-level health
+verification, enabling the weekly backup timer, and a final
+`constellation` backup checkpoint. See
+[Operations](09-operations.md#fresh-install) for the full breakdown of
+what each step does.
 
 If it relocates, you'll see it copy itself to `/opt/constellation` and
 re-run from there automatically — that's expected, not an error; just note
 that `/opt/constellation` (not your original clone) is where the
 platform actually lives from here on.
 
+It fails fast: if any step fails, everything after it is skipped rather
+than attempted, and the run ends with a summary showing exactly what
+happened (see [Operations § Deployment Summary](09-operations.md#deployment-summary--status-framework)).
+If you see `Overall: FAIL`, don't proceed to the next checklist step —
+fix what the summary points at and re-run; it's safe to re-run.
+
 ## 8. Validate services
 
-The installer already waits for container health *and* runs real
-protocol-level checks (`scripts/install/07-verify.sh`) before it reports
-success. As an operator, still take a look yourself:
+The installer already waits for container health, confirms the
+containers it started actually exist, and runs real protocol-level
+checks (`scripts/install/07-verify.sh`) before it reports success — and
+its summary tells you plainly whether that succeeded. As an operator,
+still take a look yourself:
 
 ```bash
 ./scripts/status.sh
+./scripts/doctor.sh   # deeper, read-only diagnostic - same report format
 ```
 
 Automation can confirm the services answer; only a human can confirm
@@ -243,6 +253,8 @@ architecture (`CLAUDE.md`):
 - [ ] The install lands in the same place every time
       (`/opt/constellation` by default) regardless of where it was cloned
       or run from.
+- [ ] A failure stops the installer immediately and shows up clearly in
+      the deployment summary — never a silent, unexplained crash.
 - [ ] Manual steps are limited to what's in this document; anything else
       done by hand is a signal to update the installer (via the feedback
       loop) or this checklist.

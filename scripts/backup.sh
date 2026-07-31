@@ -32,10 +32,7 @@ if [[ -n "${LABEL}" && ! "${LABEL}" =~ ^[A-Za-z0-9_-]+$ ]]; then
 fi
 
 if [[ -f .env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
+    safe_source_env .env
 fi
 
 BACKUP_RETENTION_COUNT="${BACKUP_RETENTION_COUNT:-52}"
@@ -66,14 +63,25 @@ mkdir -p "${BACKUP_DIR}"
 
 log_info "Writing backup to ${BACKUP_DIR}/"
 
+# The 'initial' and 'dependencies' checkpoints run before Constellation is
+# deployed, so Postgres/Qdrant not existing yet is normal, not a problem -
+# log_info, not log_warn, so it doesn't show up as a WARNING in the
+# installer's deployment summary (see scripts/lib/report.sh). Any other
+# run (the 'constellation' checkpoint, scheduled, or manual) expects a live
+# deployment, so the same condition there is a real log_warn.
+EXPECTED_NOT_DEPLOYED=false
+[[ "${LABEL}" == "initial" || "${LABEL}" == "dependencies" ]] && EXPECTED_NOT_DEPLOYED=true
+
 # --- PostgreSQL ---
 if command_exists docker && [[ -n "$(docker compose ps --status running --quiet postgres 2>/dev/null)" ]]; then
     log_info "Dumping PostgreSQL database..."
     docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
         | gzip > "${BACKUP_DIR}/postgres.sql.gz"
     log_success "PostgreSQL dump saved: ${BACKUP_DIR}/postgres.sql.gz"
+elif [[ "${EXPECTED_NOT_DEPLOYED}" == "true" ]]; then
+    log_info "PostgreSQL is not deployed yet (expected at the '${LABEL}' checkpoint), skipping database dump."
 else
-    log_warn "postgres container is not running (or Docker isn't installed yet), skipping database dump."
+    log_warn "PostgreSQL is not running, skipping database dump. Check: $(constellation_repo_root)/scripts/status.sh"
 fi
 
 # --- Qdrant ---
@@ -81,6 +89,8 @@ if [[ -d qdrant_storage ]]; then
     log_info "Archiving Qdrant storage..."
     tar -czf "${BACKUP_DIR}/qdrant_storage.tar.gz" qdrant_storage
     log_success "Qdrant storage archived: ${BACKUP_DIR}/qdrant_storage.tar.gz"
+elif [[ "${EXPECTED_NOT_DEPLOYED}" == "true" ]]; then
+    log_info "qdrant_storage/ doesn't exist yet (expected at the '${LABEL}' checkpoint), skipping."
 else
     log_warn "qdrant_storage/ not found, skipping."
 fi

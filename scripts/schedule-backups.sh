@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 require_root
 
 REPO_ROOT="$(constellation_repo_root)"
-TARGET_USER="${SUDO_USER:-${USER}}"
+TARGET_USER="${SUDO_USER:-$(id -un)}"
 
 SERVICE_FILE=/etc/systemd/system/constellation-backup.service
 TIMER_FILE=/etc/systemd/system/constellation-backup.timer

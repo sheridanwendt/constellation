@@ -68,7 +68,7 @@ else
 fi
 
 # --- Personal login key for the operator running the installer ---
-TARGET_USER="${SUDO_USER:-${USER}}"
+TARGET_USER="${SUDO_USER:-$(id -un)}"
 TARGET_HOME="$(user_home_dir "${TARGET_USER}")"
 TARGET_GROUP="$(id -gn "${TARGET_USER}" 2>/dev/null || echo "${TARGET_USER}")"
 
