@@ -82,94 +82,93 @@ exec > >(tee -a "${LOG_FILE}") 2>&1
 
 log_info "Constellation Phase 1 installer starting at ${REPO_ROOT}. Log: ${LOG_FILE}"
 
+# shellcheck source=scripts/lib/report.sh
+source "${SCRIPT_DIR}/scripts/lib/report.sh"
+
+report_init "Constellation Deployment Summary"
+report_set_category_order "Infrastructure" "Docker" "Configuration" "Platform Services" "Verification" "Backups"
+# Safety net: if something crashes before report_print_human_summary runs
+# (a bug, an uncaught error), print whatever was recorded instead of dying
+# silently like the first real deployment did (see ADR-0007).
+trap report_emergency_summary_trap EXIT
+
+# name|category - the mapping from install script to summary section.
 PRE_DEPLOY_STEPS=(
-    "00-preflight.sh"
-    "01-system-dependencies.sh"
-    "02-ssh.sh"
-    "03-docker.sh"
-    "04-directories.sh"
-    "05-config.sh"
+    "00-preflight.sh|Infrastructure"
+    "01-system-dependencies.sh|Infrastructure"
+    "02-ssh.sh|Infrastructure"
+    "03-docker.sh|Docker"
+    "04-directories.sh|Configuration"
+    "05-config.sh|Configuration"
 )
 
 DEPLOY_STEPS=(
-    "06-deploy-platform.sh"
-    "07-verify.sh"
-    "08-schedule-backups.sh"
+    "06-deploy-platform.sh|Platform Services"
+    "07-verify.sh|Verification"
+    "08-schedule-backups.sh|Backups"
 )
 
-run_step() {
-    local step="$1"
-    log_info "----------------------------------------------------------------"
-    log_info "Running scripts/install/${step}"
-    log_info "----------------------------------------------------------------"
-    bash "${REPO_ROOT}/scripts/install/${step}"
+INSTALL_FAILED=false
+
+# Fail fast: once a step fails, every remaining step (and checkpoint) is
+# recorded as SKIPPED rather than attempted, so a broken prerequisite can
+# never let a later stage run against a half-configured host.
+run_or_skip_step() {
+    local name="$1" category="$2"
+    if [[ "${INSTALL_FAILED}" == "true" ]]; then
+        report_mark_skipped "${name}" "${category}"
+        return
+    fi
+    if ! report_run_step "${name}" "${category}" -- bash "${REPO_ROOT}/scripts/install/${name}"; then
+        INSTALL_FAILED=true
+    fi
+}
+
+run_or_skip_backup() {
+    local label="$1"
+    local name="backup (${label})"
+    if [[ "${INSTALL_FAILED}" == "true" ]]; then
+        report_mark_skipped "${name}" "Backups"
+        return
+    fi
+    if ! report_run_step "${name}" "Backups" -- "${REPO_ROOT}/scripts/backup.sh" "${label}"; then
+        INSTALL_FAILED=true
+    fi
 }
 
 # Three checkpoints, named for what state they capture:
 #   initial      - before anything is touched (becomes the permanent baseline)
 #   dependencies - host prepared (SSH/Docker/directories/config), platform not yet deployed
 #   constellation - full platform deployed and verified
-log_info "Taking an 'initial' backup before making any changes..."
-"${REPO_ROOT}/scripts/backup.sh" initial
+run_or_skip_backup "initial"
 
-for step in "${PRE_DEPLOY_STEPS[@]}"; do
-    run_step "${step}"
+for entry in "${PRE_DEPLOY_STEPS[@]}"; do
+    IFS='|' read -r name category <<< "${entry}"
+    run_or_skip_step "${name}" "${category}"
 done
 
-log_info "Dependencies installed. Taking a 'dependencies' backup before deploying Constellation..."
-"${REPO_ROOT}/scripts/backup.sh" dependencies
+run_or_skip_backup "dependencies"
 
-for step in "${DEPLOY_STEPS[@]}"; do
-    run_step "${step}"
+for entry in "${DEPLOY_STEPS[@]}"; do
+    IFS='|' read -r name category <<< "${entry}"
+    run_or_skip_step "${name}" "${category}"
 done
 
-log_info "Taking a final 'constellation' backup now that the platform is deployed..."
-"${REPO_ROOT}/scripts/backup.sh" constellation
+run_or_skip_backup "constellation"
 
-log_info "----------------------------------------------------------------"
-log_success "Constellation Phase 1 installation complete."
-log_info "----------------------------------------------------------------"
+if [[ "${INSTALL_FAILED}" == "true" ]]; then
+    report_add_recommendation "Fix the FAILED step above, then re-run: sudo ${REPO_ROOT}/platform-install-Ubuntu.sh (safe to re-run - earlier successful steps are idempotent)."
+    report_add_recommendation "Run ${REPO_ROOT}/scripts/doctor.sh for a focused, read-only diagnostic."
+else
+    report_add_recommendation "Run ${REPO_ROOT}/scripts/status.sh to see service health and connection details."
+    report_add_recommendation "Run sudo ${REPO_ROOT}/scripts/audit-enable.sh to start the installer feedback loop (see docs/20-deployment-checklist.md)."
+fi
 
-# Resolve actual configured values for the summary below.
-set -a
-# shellcheck disable=SC1091
-source "${REPO_ROOT}/.env"
-set +a
+report_print_human_summary
+report_write_json "${REPO_ROOT}/logs/install-summary.json"
+log_info "Machine-readable report: ${REPO_ROOT}/logs/install-summary.json"
 
-cat <<EOF
-
-  Installed at: ${REPO_ROOT}
-  (This is Constellation's canonical location; it's where the platform
-  lives no matter where you originally cloned or ran the installer from.)
-
-  Services:
-    PostgreSQL  -> 127.0.0.1:${POSTGRES_PORT:-5432}
-    Qdrant      -> http://127.0.0.1:${QDRANT_HTTP_PORT:-6333}
-    NATS        -> nats://127.0.0.1:${NATS_CLIENT_PORT:-4222}  (monitor: http://127.0.0.1:${NATS_MONITOR_PORT:-8222})
-
-  Useful commands (run from anywhere):
-    ${REPO_ROOT}/scripts/status.sh    Check service health
-    ${REPO_ROOT}/scripts/logs.sh      Tail service logs
-    ${REPO_ROOT}/scripts/stop.sh      Stop the platform
-    ${REPO_ROOT}/scripts/start.sh     Start the platform
-    ${REPO_ROOT}/scripts/restart.sh   Restart the platform
-
-  Already handled by this run:
-    - Backups taken at 'initial', 'dependencies', and 'constellation'
-      checkpoints (${REPO_ROOT}/backups/)
-    - Weekly backups are scheduled (systemctl status constellation-backup.timer)
-    - SSH is installed/configured; both password and key login work
-      (deploy key: /etc/constellation/ssh/deploy_ed25519.pub)
-
-  Recommended next step:
-    sudo ${REPO_ROOT}/scripts/audit-enable.sh   Capture ad hoc commands so
-                                      they can be folded back into
-                                      scripts/install/ later. See
-                                      docs/20-deployment-checklist.md.
-
-  See docs/09-operations.md for full operational details.
-
-  If you were just added to the docker group, log out and back in
-  (or run 'newgrp docker') before running docker commands without sudo.
-
-EOF
+if [[ "${INSTALL_FAILED}" == "true" ]]; then
+    exit 1
+fi
+exit 0

@@ -44,7 +44,7 @@ log_info "Enabling and starting the docker service..."
 systemctl enable docker >/dev/null
 systemctl start docker
 
-TARGET_USER="${SUDO_USER:-${USER}}"
+TARGET_USER="${SUDO_USER:-$(id -un)}"
 if [[ "${TARGET_USER}" != "root" ]] && ! id -nG "${TARGET_USER}" | grep -qw docker; then
     log_info "Adding user '${TARGET_USER}' to the docker group..."
     usermod -aG docker "${TARGET_USER}"

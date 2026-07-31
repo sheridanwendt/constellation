@@ -62,14 +62,22 @@ it, and no matter where you cloned to. The installer will:
 4. Install and configure SSH (see [SSH](#ssh) below)
 5. Install Docker Engine and the Docker Compose plugin
 6. Create required data/log directories
-7. Generate `.env` from `.env.example` (with a strong Postgres password)
+7. Generate and self-validate `.env` (real password, safely
+   bash-sourceable, passes `docker compose config`)
 8. Take a `dependencies` backup checkpoint (host prepared, platform not
    deployed yet)
-9. Deploy the platform with Docker Compose
+9. Deploy the platform with Docker Compose, confirming containers were
+   actually created
 10. Run protocol-level health checks against every service (not just
     container status)
 11. Enable the weekly backup timer
-12. Take a final `constellation` backup checkpoint and print a summary
+12. Take a final `constellation` backup checkpoint and print **one**
+    deployment summary (see [Deployment Summary](#deployment-summary) below)
+
+If any step fails, the installer stops immediately — it will not continue
+into later steps on a broken prerequisite — and the summary shows exactly
+what ran, what failed, and what was skipped as a result. Safe to re-run
+after fixing the problem; every step is idempotent.
 
 No manual Docker (or SSH, backup-scheduling, or install-location) commands
 are required after installation. For everything that's still a manual,
@@ -77,6 +85,66 @@ human-judgment step (verifying SSH access out-of-band, deciding on a VM
 snapshot, reviewing the installer before trusting it with root, reboot
 verification, upgrades, etc.), see
 **[docs/20-deployment-checklist.md](docs/20-deployment-checklist.md)**.
+
+## Deployment Summary
+
+Every installer run ends with exactly one summary — no scrolling back
+through hundreds of lines of apt/docker output to find out what happened:
+
+```
+================================================
+  Constellation Deployment Summary
+================================================
+
+Overall: FAIL   (elapsed: 3m12s)
+
+Infrastructure
+  [ OK ] 00-preflight.sh                2s
+  [ OK ] 01-system-dependencies.sh      45s
+  ...
+
+Configuration
+  [FAIL] 05-config.sh                   1s - exit 1
+
+Platform Services
+  [SKIP] 06-deploy-platform.sh          0s - skipped after an earlier failure
+  ...
+
+Warnings
+  - 03-docker.sh: You must log out and back in ... before running docker without sudo.
+
+Recommendations
+  - Fix the FAILED step above, then re-run: sudo /opt/constellation/platform-install-Ubuntu.sh
+  - Run /opt/constellation/scripts/doctor.sh for a focused, read-only diagnostic.
+================================================
+```
+
+Every step gets exactly one status — **SUCCESS**, **WARNING**, **FAILED**,
+or **SKIPPED** — and a machine-readable copy is always written to
+`logs/install-summary.json` (installer version/commit, timestamps, every
+step's status and duration, warnings, the failed step if any, and
+recommendations) for scripting or attaching to a bug report.
+
+This exists because of a real incident: the first live deployment died
+with a cryptic one-line bash error and no summary at all. See
+[ADR-0007](docs/adr/0007-installer-status-framework.md) for the full story
+and [scripts/lib/report.sh](scripts/lib/report.sh) for the engine — it's a
+shared library, so future installers (Hermes, Athena, etc.) get status
+tracking, timing, and reporting for free.
+
+## Diagnosing a Deployment
+
+```bash
+./scripts/doctor.sh
+```
+
+A read-only diagnostic that never modifies anything — checks Ubuntu
+version, RAM, disk, Docker (installed + group permissions), `.env`,
+`docker compose config`, PostgreSQL/Qdrant/NATS, the backup schedule, and
+SSH, and prints the exact same kind of summary as the installer (plus
+`logs/doctor-report.json`). Useful both after a failed install and
+periodically on a healthy one. Run with `sudo` for a fully complete SSH
+check (validating the host keys needs root); works without it otherwise.
 
 ## Install Location
 
@@ -143,6 +211,10 @@ Data is preserved in `postgres_data/`, `qdrant_storage/`, and `data/nats/`.
 ./scripts/logs.sh          # all services
 ./scripts/logs.sh postgres # single service
 ```
+
+For a deeper, read-only diagnostic (Docker permissions, `.env` validity,
+protocol-level service checks, SSH, backups), see
+[Diagnosing a Deployment](#diagnosing-a-deployment) below.
 
 ## Backups
 

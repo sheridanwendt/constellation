@@ -60,6 +60,64 @@ order:
 
 Installer output is also written to `logs/install-<timestamp>.log`.
 
+Every step above reports exactly one status - **SUCCESS**, **WARNING**,
+**FAILED**, or **SKIPPED** - and the installer **fails fast**: the moment
+any step reports FAILED, no further steps or checkpoints are attempted,
+and everything that would have run is recorded SKIPPED rather than
+silently omitted. One human-readable summary prints at the end (there is
+no separate legacy summary block), and a machine-readable copy is always
+written to `logs/install-summary.json`. See
+[Deployment Summary & Status Framework](#deployment-summary--status-framework)
+below and [ADR-0007](adr/0007-installer-status-framework.md) for why.
+
+## Deployment Summary & Status Framework
+
+`scripts/lib/report.sh` is a shared engine (used by both
+`platform-install-Ubuntu.sh` and `scripts/doctor.sh`) that:
+
+- Classifies every step from its exit code plus whether it printed a
+  `log_warn()` `[WARN]` line: exit non-zero → FAILED; exit zero with a
+  warning → WARNING; exit zero, clean → SUCCESS. Steps skipped after an
+  earlier failure are recorded SKIPPED.
+- Times every step and the run as a whole.
+- Prints one grouped human-readable summary at installer/doctor
+  completion: `Overall`, then per-category sections (`Infrastructure`,
+  `Docker`, `Configuration`, `Platform Services`, `Verification`,
+  `Backups` for the installer; a similar breakdown for doctor mode), then
+  `Warnings` and `Recommendations`.
+- Writes `logs/install-summary.json` (installer) or
+  `logs/doctor-report.json` (doctor mode): installer version (short git
+  commit), install timestamp, elapsed time, Ubuntu version, overall
+  status, every step's status/duration/detail, all warnings, the failed
+  step if any, and recommendations. Hand-rolled JSON output with no `jq`
+  dependency, since it must still work if an early step that would have
+  installed `jq` is itself the one that failed.
+- Registers an emergency `EXIT` trap: if the script terminates without
+  ever reaching the normal summary (a genuine crash, not a fail-fast
+  stop), it prints whatever was recorded instead of exiting silently -
+  the specific failure mode that made the original BOM incident (see
+  ADR-0007) hard to diagnose.
+
+Check logic itself lives in `scripts/lib/checks.sh`, shared between the
+installer's own stage validation (`00-preflight.sh`, `05-config.sh`,
+`07-verify.sh`) and `scripts/doctor.sh`, so the two can't drift apart.
+
+## Doctor Mode
+
+```bash
+./scripts/doctor.sh          # read-only, works without root
+sudo ./scripts/doctor.sh     # fully validates SSH config too
+```
+
+Runs the same checks the installer validates itself with - Ubuntu
+version, RAM, disk, Docker (installed + group permissions), `.env`
+(exists, real password, BOM-free, sources cleanly), `docker compose
+config`, PostgreSQL/Qdrant/NATS (protocol-level), the backup timer, and
+SSH - against an existing (or attempted) deployment, and prints the same
+kind of report the installer does. **Never modifies anything.** Useful
+after a failed install (to see exactly what's missing before re-running)
+or periodically on a healthy one.
+
 ## Install Location
 
 `platform-install-Ubuntu.sh` always installs to `/opt/constellation`

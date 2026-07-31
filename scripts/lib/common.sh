@@ -74,3 +74,38 @@ port_in_use() {
 user_home_dir() {
     getent passwd "$1" | cut -d: -f6
 }
+
+# Strips a leading UTF-8 byte-order-mark from a file in place, if present.
+# A BOM before the '#' on line 1 breaks `source`/`.` (bash tries to execute
+# the BOM+'#' bytes as a command instead of recognizing a comment), which is
+# exactly what happened to the first real deployment: .env.example carried a
+# BOM through into every generated .env, and `source .env` in scripts/backup.sh
+# died with "command not found" the first time it ran against a real .env.
+# Safe to call on any file, including ones without a BOM (no-op then).
+strip_bom_if_present() {
+    local file="$1"
+    [[ -f "${file}" ]] || return 0
+
+    local first_bytes
+    first_bytes="$(head -c3 "${file}" | od -An -tx1 | tr -d ' \n')"
+    if [[ "${first_bytes}" == "efbbbf" ]]; then
+        log_warn "${file} starts with a UTF-8 byte-order-mark, which breaks bash 'source'. Stripping it."
+        local orig_mode
+        orig_mode="$(stat -c%a "${file}")"
+        tail -c +4 "${file}" > "${file}.no-bom"
+        chmod "${orig_mode}" "${file}.no-bom"
+        mv "${file}.no-bom" "${file}"
+    fi
+}
+
+# Sources a .env-style file safely: strips a BOM first (see
+# strip_bom_if_present), then exports every variable it defines. Use this
+# instead of a bare `source <file>` anywhere a .env needs to be loaded.
+safe_source_env() {
+    local file="$1"
+    strip_bom_if_present "${file}"
+    set -a
+    # shellcheck disable=SC1090
+    source "${file}"
+    set +a
+}
